@@ -74,6 +74,19 @@
   #imgModal img{max-width:90%;max-height:90%;border-radius:6px;}
 
   .hidden{display:none !important;}
+
+  /* ---------- Mobile responsive ---------- */
+  #backBtn{display:none;background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 6px;}
+  @media (max-width: 768px){
+    #app{position:relative;overflow:hidden;}
+    #sidebar{width:100%;min-width:0;}
+    #chatArea{display:none;}
+    body.chatOpen #sidebar{display:none;}
+    body.chatOpen #chatArea{display:flex;}
+    #backBtn{display:inline-block;}
+    .bubble{max-width:80%;}
+    #authBox{width:88vw;}
+  }
 </style>
 </head>
 <body>
@@ -111,6 +124,7 @@
     <div id="chatPlaceholder">اختر محادثة أو ابدأ واحدة جديدة</div>
     <div id="chatHeaderWrap" class="hidden" style="display:flex;flex-direction:column;flex:1;">
       <div id="chatHeader">
+        <button id="backBtn">→</button>
         <div class="title" id="chatTitle" style="flex:1;"></div>
         <button id="addMembersBtn" class="hidden" style="background:none;border:1px solid #fff;color:#fff;border-radius:16px;padding:5px 12px;cursor:pointer;">👥+</button>
       </div>
@@ -119,7 +133,6 @@
         <label class="fileBtn" for="imageInput">📷</label>
         <input type="file" id="imageInput" accept="image/*" class="hidden">
         <input type="text" id="textInput" placeholder="اكتب رسالة...">
-        <button id="micBtn" title="تسجيل صوتي">🎤</button>
         <button id="sendBtn">➤</button>
       </div>
     </div>
@@ -355,6 +368,7 @@ function addMembersToGroup(convId){
 // ---------- Chat window ----------
 function openConversation(id){
   activeConvId = id;
+  document.body.classList.add('chatOpen');
   document.getElementById('chatPlaceholder').classList.add('hidden');
   document.getElementById('chatHeaderWrap').classList.remove('hidden');
   const conv = conversations[id];
@@ -436,38 +450,9 @@ document.getElementById('imageInput').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-// ---------- Voice recording ----------
-let mediaRecorder = null;
-let chunks = [];
-const micBtn = document.getElementById('micBtn');
-micBtn.onclick = async () => {
-  if(!activeConvId) return;
-  if(mediaRecorder && mediaRecorder.state === 'recording'){
-    mediaRecorder.stop();
-    return;
-  }
-  try{
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
-    chunks = [];
-    mediaRecorder.ondataavailable = e => chunks.push(e.data);
-    mediaRecorder.onstop = async () => {
-      micBtn.classList.remove('recording');
-      const blob = new Blob(chunks, { type: 'audio/webm' });
-      const fd = new FormData();
-      fd.append('file', blob, 'voice.webm');
-      const res = await fetch('/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if(data.url){
-        socket.emit('send_message', { convId: activeConvId, type: 'voice', content: data.url }, () => {});
-      }
-      stream.getTracks().forEach(t => t.stop());
-    };
-    mediaRecorder.start();
-    micBtn.classList.add('recording');
-  } catch(err){
-    alert(lang==='ar' ? 'ما قدرنا نوصل عالمايكروفون' : 'Could not access microphone');
-  }
+document.getElementById('backBtn').onclick = () => {
+  document.body.classList.remove('chatOpen');
+  activeConvId = null;
 };
 
 // ---------- Image modal ----------
