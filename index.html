@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Akbarita Chat</title>
+<style>
+  :root{
+    --green:#128C7E;
+    --green-dark:#075E54;
+    --green-light:#DCF8C6;
+    --bg:#ECE5DD;
+    --panel:#ffffff;
+    --text:#111;
+    --muted:#667781;
+    --border:#e9edef;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Tahoma,Arial,sans-serif;background:var(--bg);height:100vh;overflow:hidden;}
+  #app{display:flex;height:100vh;}
+
+  /* ---------- Auth screen ---------- */
+  #authScreen{
+    position:fixed;inset:0;background:var(--green-dark);display:flex;
+    align-items:center;justify-content:center;z-index:50;flex-direction:column;color:#fff;
+  }
+  #authScreen h1{font-size:32px;margin-bottom:4px;}
+  #authScreen p{color:#cfe9e4;margin-top:0;margin-bottom:24px;}
+  #authBox{background:#fff;color:#111;padding:28px;border-radius:12px;width:320px;max-width:90vw;box-shadow:0 10px 30px rgba(0,0,0,.3);}
+  #authBox input{width:100%;padding:12px;border-radius:8px;border:1px solid #ccc;font-size:16px;margin-bottom:10px;}
+  #authBox button{width:100%;padding:12px;border:none;border-radius:8px;background:var(--green);color:#fff;font-size:16px;cursor:pointer;}
+  #authBox button:hover{background:var(--green-dark);}
+  #authMsg{min-height:20px;color:#d33;font-size:14px;margin-bottom:8px;}
+  #langToggleAuth{position:absolute;top:16px;inset-inline-end:16px;background:rgba(255,255,255,.15);border:1px solid #fff;color:#fff;padding:6px 14px;border-radius:20px;cursor:pointer;}
+
+  /* ---------- Sidebar ---------- */
+  #sidebar{width:360px;min-width:280px;background:var(--panel);border-inline-end:1px solid var(--border);display:flex;flex-direction:column;}
+  #sidebarHeader{background:var(--green-dark);color:#fff;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;}
+  #sidebarHeader .me{font-weight:600;}
+  #sidebarHeader .actions button{background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-inline-start:10px;}
+  #newChatBar{display:flex;padding:10px;gap:6px;border-bottom:1px solid var(--border);}
+  #newChatBar input{flex:1;padding:8px 10px;border-radius:20px;border:1px solid #ccc;}
+  #newChatBar button{padding:8px 12px;border:none;border-radius:20px;background:var(--green);color:#fff;cursor:pointer;}
+  #convList{flex:1;overflow-y:auto;}
+  .convItem{display:flex;align-items:center;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);gap:10px;}
+  .convItem:hover{background:#f5f5f5;}
+  .convItem.active{background:#ebebeb;}
+  .avatar{width:44px;height:44px;border-radius:50%;background:var(--green);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
+  .convMeta{flex:1;min-width:0;}
+  .convName{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .convLast{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #emptyConv{padding:20px;color:var(--muted);text-align:center;}
+
+  /* ---------- Chat area ---------- */
+  #chatArea{flex:1;display:flex;flex-direction:column;background:var(--bg);}
+  #chatHeader{background:var(--green-dark);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;min-height:30px;}
+  #chatHeader .title{font-weight:600;}
+  #chatPlaceholder{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:18px;}
+  #messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:6px;}
+  .bubble{max-width:65%;padding:8px 12px;border-radius:10px;position:relative;font-size:15px;line-height:1.4;}
+  .bubble.mine{align-self:flex-end;background:var(--green-light);border-end-end-radius:2px;}
+  .bubble.theirs{align-self:flex-start;background:#fff;border-end-start-radius:2px;}
+  .bubble .sender{font-size:12px;font-weight:700;color:var(--green-dark);margin-bottom:2px;}
+  .bubble img{max-width:220px;border-radius:8px;display:block;margin-top:4px;cursor:pointer;}
+  .bubble audio{margin-top:4px;max-width:230px;}
+  .bubble .time{font-size:10px;color:var(--muted);text-align:end;margin-top:2px;}
+  #inputBar{display:flex;align-items:center;gap:8px;padding:10px;background:#f0f0f0;}
+  #inputBar input[type=text]{flex:1;padding:12px 14px;border-radius:22px;border:1px solid #ccc;font-size:15px;}
+  #inputBar button{background:var(--green);border:none;color:#fff;width:42px;height:42px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  #inputBar button.recording{background:#d33;}
+  #inputBar label.fileBtn{background:#fff;border:1px solid #ccc;color:var(--green-dark);width:42px;height:42px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+  #imgModal{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:100;}
+  #imgModal img{max-width:90%;max-height:90%;border-radius:6px;}
+
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<div id="authScreen">
+  <button id="langToggleAuth">EN</button>
+  <h1 id="brandTitle">Akbarita Chat</h1>
+  <p id="brandSub">دردشة فورية باسم مستخدم فقط — بلا تسجيل معقّد</p>
+  <div id="authBox">
+    <div id="authMsg"></div>
+    <input id="usernameInput" type="text" placeholder="اختر اسم مستخدم..." maxlength="20">
+    <button id="joinBtn">دخول / إنشاء</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="sidebar">
+    <div id="sidebarHeader">
+      <div class="me" id="meLabel"></div>
+      <div class="actions">
+        <button id="langToggle" title="Language">EN</button>
+        <button id="groupBtn" title="مجموعة جديدة">👥+</button>
+      </div>
+    </div>
+    <div id="newChatBar">
+      <input id="newChatInput" type="text" placeholder="ابدأ محادثة مع username...">
+      <button id="newChatBtn">بدء</button>
+    </div>
+    <div id="convList"></div>
+  </div>
+  <div id="chatArea">
+    <div id="chatPlaceholder">اختر محادثة أو ابدأ واحدة جديدة</div>
+    <div id="chatHeaderWrap" class="hidden" style="display:flex;flex-direction:column;flex:1;">
+      <div id="chatHeader"><div class="title" id="chatTitle"></div></div>
+      <div id="messages"></div>
+      <div id="inputBar">
+        <label class="fileBtn" for="imageInput">📷</label>
+        <input type="file" id="imageInput" accept="image/*" class="hidden">
+        <input type="text" id="textInput" placeholder="اكتب رسالة...">
+        <button id="micBtn" title="تسجيل صوتي">🎤</button>
+        <button id="sendBtn">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="imgModal"><img id="imgModalImg" src=""></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+
+const STR = {
+  ar: {
+    title: 'Akbarita Chat', sub: 'دردشة فورية باسم مستخدم فقط — بلا تسجيل معقّد',
+    placeholder: 'اختر اسم مستخدم...', join: 'دخول / إنشاء',
+    newChatPh: 'ابدأ محادثة مع username...', start: 'بدء',
+    emptyChat: 'اختر محادثة أو ابدأ واحدة جديدة', msgPh: 'اكتب رسالة...',
+    groupTitle: 'اسم المجموعة', groupMembers: 'أسماء الأعضاء (مفصولة بفاصلة)',
+    create: 'إنشاء', errTaken: 'هذا الاسم مستخدم من شخص ثاني', errFormat: 'الاسم غير صالح (2-20 حرف/رقم)',
+    errNoUser: 'لا يوجد مستخدم بهذا الاسم', errSelf: 'ما فيك تراسل حالك',
+    you: 'أنت'
+  },
+  en: {
+    title: 'Akbarita Chat', sub: 'Instant chat with just a username — no signup hassle',
+    placeholder: 'Choose a username...', join: 'Join / Create',
+    newChatPh: 'Start chat with username...', start: 'Start',
+    emptyChat: 'Select a chat or start a new one', msgPh: 'Type a message...',
+    groupTitle: 'Group name', groupMembers: 'Member usernames (comma separated)',
+    create: 'Create', errTaken: 'This username is already taken', errFormat: 'Invalid username (2-20 chars)',
+    errNoUser: 'No such user', errSelf: "You can't message yourself",
+    you: 'You'
+  }
+};
+let lang = 'ar';
+function t(k){ return STR[lang][k]; }
+
+function applyLang(){
+  const isAr = lang === 'ar';
+  document.documentElement.lang = lang;
+  document.documentElement.dir = isAr ? 'rtl' : 'ltr';
+  document.getElementById('brandTitle').textContent = t('title');
+  document.getElementById('brandSub').textContent = t('sub');
+  document.getElementById('usernameInput').placeholder = t('placeholder');
+  document.getElementById('joinBtn').textContent = t('join');
+  document.getElementById('newChatInput').placeholder = t('newChatPh');
+  document.getElementById('newChatBtn').textContent = t('start');
+  document.getElementById('chatPlaceholder').textContent = t('emptyChat');
+  document.getElementById('textInput').placeholder = t('msgPh');
+  document.getElementById('langToggle').textContent = isAr ? 'EN' : 'AR';
+  document.getElementById('langToggleAuth').textContent = isAr ? 'EN' : 'AR';
+}
+document.getElementById('langToggle').onclick = () => { lang = lang === 'ar' ? 'en' : 'ar'; applyLang(); };
+document.getElementById('langToggleAuth').onclick = () => { lang = lang === 'ar' ? 'en' : 'ar'; applyLang(); };
+applyLang();
+
+let me = null;
+let conversations = {};
+let activeConvId = null;
+
+// ---------- Auth ----------
+const authMsg = document.getElementById('authMsg');
+function doJoin(){
+  const val = document.getElementById('usernameInput').value.trim();
+  if(!val) return;
+  socket.emit('register', val, (res) => {
+    if(res.ok){
+      enterApp(res.username);
+    } else if(res.error === 'taken'){
+      // try login instead (rejoin as existing user with same name is fine per design,
+      // but per spec two people cannot share a name, so offer login only if it's literally you returning)
+      authMsg.textContent = t('errTaken');
+    } else {
+      authMsg.textContent = t('errFormat');
+    }
+  });
+}
+document.getElementById('joinBtn').onclick = doJoin;
+document.getElementById('usernameInput').addEventListener('keydown', e => { if(e.key==='Enter') doJoin(); });
+
+function enterApp(username){
+  me = username;
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('meLabel').textContent = '@' + me;
+  refreshConversations();
+}
+
+// ---------- Conversations ----------
+function refreshConversations(){
+  socket.emit('get_conversations', (res) => {
+    if(!res.ok) return;
+    conversations = {};
+    res.conversations.forEach(c => conversations[c.id] = c);
+    renderConvList(res.conversations);
+  });
+}
+
+function renderConvList(list){
+  const el = document.getElementById('convList');
+  el.innerHTML = '';
+  if(list.length === 0){
+    el.innerHTML = `<div id="emptyConv">${lang==='ar' ? 'ما في محادثات بعد' : 'No chats yet'}</div>`;
+    return;
+  }
+  list.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'convItem' + (c.id === activeConvId ? ' active' : '');
+    const initial = (c.name || '?').trim().charAt(0).toUpperCase();
+    const lastText = c.lastMessage ? previewText(c.lastMessage) : '';
+    div.innerHTML = `<div class="avatar">${initial}</div>
+      <div class="convMeta"><div class="convName">${escapeHtml(c.name)}${c.type==='group' ? ' 👥' : ''}</div>
+      <div class="convLast">${escapeHtml(lastText)}</div></div>`;
+    div.onclick = () => openConversation(c.id);
+    el.appendChild(div);
+  });
+}
+
+function previewText(m){
+  if(m.type === 'text') return m.content;
+  if(m.type === 'image') return lang==='ar' ? '📷 صورة' : '📷 Photo';
+  if(m.type === 'voice') return lang==='ar' ? '🎤 رسالة صوتية' : '🎤 Voice message';
+  return '';
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+document.getElementById('newChatBtn').onclick = () => {
+  const uname = document.getElementById('newChatInput').value.trim();
+  if(!uname) return;
+  socket.emit('open_dm', { withUsername: uname }, (res) => {
+    if(!res.ok){
+      alert(res.error === 'no_such_user' ? t('errNoUser') : res.error === 'self' ? t('errSelf') : res.error);
+      return;
+    }
+    document.getElementById('newChatInput').value = '';
+    conversations[res.id] = { ...res.conversation, id: res.id, name: res.conversation.members.find(m => m.toLowerCase() !== me.toLowerCase()) };
+    refreshConversations();
+    openConversation(res.id);
+  });
+};
+
+document.getElementById('groupBtn').onclick = () => {
+  const name = prompt(t('groupTitle'));
+  if(!name) return;
+  const membersRaw = prompt(t('groupMembers')) || '';
+  const members = membersRaw.split(',').map(s => s.trim()).filter(Boolean);
+  socket.emit('create_group', { name, members }, (res) => {
+    if(!res.ok){ alert(res.error); return; }
+    refreshConversations();
+    openConversation(res.id);
+  });
+};
+
+socket.on('conversation_created', ({ id }) => { refreshConversations(); });
+
+// ---------- Chat window ----------
+function openConversation(id){
+  activeConvId = id;
+  document.getElementById('chatPlaceholder').classList.add('hidden');
+  document.getElementById('chatHeaderWrap').classList.remove('hidden');
+  const conv = conversations[id];
+  document.getElementById('chatTitle').textContent = (conv ? conv.name : id) + (conv && conv.type==='group' ? ' 👥' : '');
+  document.getElementById('messages').innerHTML = '';
+  socket.emit('get_messages', { convId: id }, (res) => {
+    if(!res.ok) return;
+    res.messages.forEach(renderMessage);
+    scrollBottom();
+  });
+  document.querySelectorAll('.convItem').forEach(el => el.classList.remove('active'));
+  refreshConversations();
+}
+
+function renderMessage(m){
+  const wrap = document.getElementById('messages');
+  const div = document.createElement('div');
+  const mine = m.from.toLowerCase() === me.toLowerCase();
+  div.className = 'bubble ' + (mine ? 'mine' : 'theirs');
+  let inner = '';
+  const conv = conversations[activeConvId];
+  if(!mine && conv && conv.type === 'group'){
+    inner += `<div class="sender">${escapeHtml(m.from)}</div>`;
+  }
+  if(m.type === 'text'){
+    inner += `<div>${escapeHtml(m.content)}</div>`;
+  } else if(m.type === 'image'){
+    inner += `<img src="${m.content}" onclick="openImgModal('${m.content}')">`;
+  } else if(m.type === 'voice'){
+    inner += `<audio controls src="${m.content}"></audio>`;
+  }
+  const time = new Date(m.ts).toLocaleTimeString(lang==='ar'?'ar':'en', { hour:'2-digit', minute:'2-digit' });
+  inner += `<div class="time">${time}</div>`;
+  div.innerHTML = inner;
+  wrap.appendChild(div);
+}
+
+function scrollBottom(){
+  const wrap = document.getElementById('messages');
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+socket.on('new_message', ({ convId, message }) => {
+  if(convId === activeConvId){
+    renderMessage(message);
+    scrollBottom();
+  }
+  refreshConversations();
+});
+
+// ---------- Sending ----------
+function sendText(){
+  const input = document.getElementById('textInput');
+  const val = input.value.trim();
+  if(!val || !activeConvId) return;
+  socket.emit('send_message', { convId: activeConvId, type: 'text', content: val }, (res) => {});
+  input.value = '';
+}
+document.getElementById('sendBtn').onclick = sendText;
+document.getElementById('textInput').addEventListener('keydown', e => { if(e.key==='Enter') sendText(); });
+
+document.getElementById('imageInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if(!file || !activeConvId) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const res = await fetch('/upload', { method: 'POST', body: fd });
+  const data = await res.json();
+  if(data.url){
+    socket.emit('send_message', { convId: activeConvId, type: 'image', content: data.url }, () => {});
+  }
+  e.target.value = '';
+});
+
+// ---------- Voice recording ----------
+let mediaRecorder = null;
+let chunks = [];
+const micBtn = document.getElementById('micBtn');
+micBtn.onclick = async () => {
+  if(!activeConvId) return;
+  if(mediaRecorder && mediaRecorder.state === 'recording'){
+    mediaRecorder.stop();
+    return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    chunks = [];
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      micBtn.classList.remove('recording');
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const fd = new FormData();
+      fd.append('file', blob, 'voice.webm');
+      const res = await fetch('/upload', { method: 'POST', body: fd });
+      const data = await res.json();
+      if(data.url){
+        socket.emit('send_message', { convId: activeConvId, type: 'voice', content: data.url }, () => {});
+      }
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+    micBtn.classList.add('recording');
+  } catch(err){
+    alert(lang==='ar' ? 'ما قدرنا نوصل عالمايكروفون' : 'Could not access microphone');
+  }
+};
+
+// ---------- Image modal ----------
+function openImgModal(src){
+  document.getElementById('imgModalImg').src = src;
+  document.getElementById('imgModal').style.display = 'flex';
+}
+document.getElementById('imgModal').onclick = () => { document.getElementById('imgModal').style.display = 'none'; };
+</script>
+</body>
+</html>
