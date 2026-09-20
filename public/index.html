@@ -95,19 +95,25 @@
       <div class="me" id="meLabel"></div>
       <div class="actions">
         <button id="langToggle" title="Language">EN</button>
+        <button id="allUsersBtn" title="كل المستخدمين">👤📋</button>
         <button id="groupBtn" title="مجموعة جديدة">👥+</button>
+        <button id="logoutBtn" title="تبديل المستخدم">⇄</button>
       </div>
     </div>
     <div id="newChatBar">
       <input id="newChatInput" type="text" placeholder="ابدأ محادثة مع username...">
       <button id="newChatBtn">بدء</button>
     </div>
+    <div id="allUsersPanel" class="hidden" style="border-bottom:1px solid var(--border);max-height:220px;overflow-y:auto;"></div>
     <div id="convList"></div>
   </div>
   <div id="chatArea">
     <div id="chatPlaceholder">اختر محادثة أو ابدأ واحدة جديدة</div>
     <div id="chatHeaderWrap" class="hidden" style="display:flex;flex-direction:column;flex:1;">
-      <div id="chatHeader"><div class="title" id="chatTitle"></div></div>
+      <div id="chatHeader">
+        <div class="title" id="chatTitle" style="flex:1;"></div>
+        <button id="addMembersBtn" class="hidden" style="background:none;border:1px solid #fff;color:#fff;border-radius:16px;padding:5px 12px;cursor:pointer;">👥+</button>
+      </div>
       <div id="messages"></div>
       <div id="inputBar">
         <label class="fileBtn" for="imageInput">📷</label>
@@ -165,6 +171,9 @@ function applyLang(){
   document.getElementById('textInput').placeholder = t('msgPh');
   document.getElementById('langToggle').textContent = isAr ? 'EN' : 'AR';
   document.getElementById('langToggleAuth').textContent = isAr ? 'EN' : 'AR';
+  document.getElementById('allUsersBtn').title = isAr ? 'كل المستخدمين' : 'All users';
+  document.getElementById('groupBtn').title = isAr ? 'مجموعة جديدة' : 'New group';
+  document.getElementById('logoutBtn').title = isAr ? 'تبديل المستخدم' : 'Switch user';
 }
 document.getElementById('langToggle').onclick = () => { lang = lang === 'ar' ? 'en' : 'ar'; applyLang(); };
 document.getElementById('langToggleAuth').onclick = () => { lang = lang === 'ar' ? 'en' : 'ar'; applyLang(); };
@@ -176,15 +185,15 @@ let activeConvId = null;
 
 // ---------- Auth ----------
 const authMsg = document.getElementById('authMsg');
+
 function doJoin(){
   const val = document.getElementById('usernameInput').value.trim();
   if(!val) return;
   socket.emit('register', val, (res) => {
     if(res.ok){
+      localStorage.setItem('akbarita_username', res.username);
       enterApp(res.username);
     } else if(res.error === 'taken'){
-      // try login instead (rejoin as existing user with same name is fine per design,
-      // but per spec two people cannot share a name, so offer login only if it's literally you returning)
       authMsg.textContent = t('errTaken');
     } else {
       authMsg.textContent = t('errFormat');
@@ -194,11 +203,25 @@ function doJoin(){
 document.getElementById('joinBtn').onclick = doJoin;
 document.getElementById('usernameInput').addEventListener('keydown', e => { if(e.key==='Enter') doJoin(); });
 
+// Auto rejoin with a saved username on this device/browser
+function tryAutoLogin(){
+  const saved = localStorage.getItem('akbarita_username');
+  if(!saved) return;
+  socket.emit('login', saved, (res) => {
+    if(res.ok){
+      enterApp(res.username);
+    }
+    // if it fails (username no longer exists), just show the normal auth screen
+  });
+}
+tryAutoLogin();
+
 function enterApp(username){
   me = username;
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('meLabel').textContent = '@' + me;
   refreshConversations();
+  refreshAllUsers();
 }
 
 // ---------- Conversations ----------
@@ -273,6 +296,62 @@ document.getElementById('groupBtn').onclick = () => {
 
 socket.on('conversation_created', ({ id }) => { refreshConversations(); });
 
+// ---------- Directory: all registered users ----------
+function refreshAllUsers(){
+  socket.emit('get_all_users', (res) => {
+    if(!res.ok) return;
+    const panel = document.getElementById('allUsersPanel');
+    panel.innerHTML = '';
+    if(res.users.length === 0){
+      panel.innerHTML = `<div style="padding:12px;color:var(--muted);">${lang==='ar' ? 'ما في مستخدمين تانيين بعد' : 'No other users yet'}</div>`;
+      return;
+    }
+    res.users.forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'convItem';
+      div.innerHTML = `<div class="avatar">${u.charAt(0).toUpperCase()}</div><div class="convMeta"><div class="convName">@${escapeHtml(u)}</div></div>`;
+      div.onclick = () => {
+        socket.emit('open_dm', { withUsername: u }, (res2) => {
+          if(!res2.ok) return;
+          conversations[res2.id] = { ...res2.conversation, id: res2.id, name: u };
+          document.getElementById('allUsersPanel').classList.add('hidden');
+          refreshConversations();
+          openConversation(res2.id);
+        });
+      };
+      panel.appendChild(div);
+    });
+  });
+}
+document.getElementById('allUsersBtn').onclick = () => {
+  const panel = document.getElementById('allUsersPanel');
+  panel.classList.toggle('hidden');
+  if(!panel.classList.contains('hidden')) refreshAllUsers();
+};
+
+// ---------- Switch user (logout on this device) ----------
+document.getElementById('logoutBtn').onclick = () => {
+  const msg = lang==='ar' ? 'رح ترجع تختار اسم مستخدم جديد بهاد الجهاز. أكيد بدك تكمل؟' : 'You will need to pick a username again on this device. Continue?';
+  if(confirm(msg)){
+    localStorage.removeItem('akbarita_username');
+    location.reload();
+  }
+};
+
+// ---------- Add members to an existing group ----------
+function addMembersToGroup(convId){
+  const membersRaw = prompt(t('groupMembers')) || '';
+  const members = membersRaw.split(',').map(s => s.trim()).filter(Boolean);
+  if(members.length === 0) return;
+  socket.emit('add_group_members', { convId, members }, (res) => {
+    if(!res.ok){
+      alert(lang==='ar' ? 'ما انضاف حدا (تأكد من الأسماء)' : 'No one was added (check the usernames)');
+      return;
+    }
+    refreshConversations();
+  });
+}
+
 // ---------- Chat window ----------
 function openConversation(id){
   activeConvId = id;
@@ -280,6 +359,13 @@ function openConversation(id){
   document.getElementById('chatHeaderWrap').classList.remove('hidden');
   const conv = conversations[id];
   document.getElementById('chatTitle').textContent = (conv ? conv.name : id) + (conv && conv.type==='group' ? ' 👥' : '');
+  const addBtn = document.getElementById('addMembersBtn');
+  if(conv && conv.type === 'group'){
+    addBtn.classList.remove('hidden');
+    addBtn.onclick = () => addMembersToGroup(id);
+  } else {
+    addBtn.classList.add('hidden');
+  }
   document.getElementById('messages').innerHTML = '';
   socket.emit('get_messages', { convId: id }, (res) => {
     if(!res.ok) return;
