@@ -247,7 +247,7 @@ io.on('connection', (socket) => {
     if (!conv || !conv.members.map(m => m.toLowerCase()).includes(currentUser.toLowerCase())) {
       return cb({ ok: false, error: 'not_member' });
     }
-    if (!['text', 'image', 'voice'].includes(type)) return cb({ ok: false, error: 'bad_type' });
+    if (!['text', 'image'].includes(type)) return cb({ ok: false, error: 'bad_type' });
     if (!content) return cb({ ok: false, error: 'empty' });
 
     const msg = {
