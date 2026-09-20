@@ -158,6 +158,15 @@ io.on('connection', (socket) => {
     cb({ taken: isUsernameTaken((username || '').trim()) });
   });
 
+  socket.on('get_all_users', (cb) => {
+    if (!currentUser) return cb({ ok: false, error: 'not_registered' });
+    const list = Object.values(db.users)
+      .map(u => u.username)
+      .filter(u => u.toLowerCase() !== currentUser.toLowerCase())
+      .sort((a, b) => a.localeCompare(b));
+    cb({ ok: true, users: list });
+  });
+
   socket.on('get_conversations', (cb) => {
     if (!currentUser) return cb({ ok: false, error: 'not_registered' });
     cb({ ok: true, conversations: userConversationsList(currentUser) });
@@ -197,6 +206,30 @@ io.on('connection', (socket) => {
       sendToUser(m, 'conversation_created', { id, conversation: db.conversations[id] });
     }
     cb({ ok: true, id, conversation: db.conversations[id] });
+  });
+
+  socket.on('add_group_members', ({ convId, members }, cb) => {
+    if (!currentUser) return cb({ ok: false, error: 'not_registered' });
+    const conv = db.conversations[convId];
+    if (!conv || conv.type !== 'group') return cb({ ok: false, error: 'not_group' });
+    if (!conv.members.map(m => m.toLowerCase()).includes(currentUser.toLowerCase())) {
+      return cb({ ok: false, error: 'not_member' });
+    }
+    const added = [];
+    for (const m of (members || [])) {
+      const mm = (m || '').trim();
+      const rec = mm && db.users[mm.toLowerCase()];
+      if (rec && !conv.members.map(x => x.toLowerCase()).includes(mm.toLowerCase())) {
+        conv.members.push(rec.username);
+        added.push(rec.username);
+      }
+    }
+    if (added.length === 0) return cb({ ok: false, error: 'nothing_added' });
+    saveDB();
+    for (const m of conv.members) {
+      sendToUser(m, 'conversation_created', { id: convId, conversation: conv });
+    }
+    cb({ ok: true, added, conversation: conv });
   });
 
   socket.on('get_messages', ({ convId }, cb) => {
